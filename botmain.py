@@ -7,7 +7,7 @@ from subprocess import check_output
 
 # ////////////////// PROCESSING
 def main():
-	NICK = 'rocksteady'
+	NICK = 'bibop_test'
 	HOST = ('chat.freenode.net',6667)
 	CHAN = ['#laphysique']
 	
@@ -18,8 +18,8 @@ def main():
 	bot.Connect()
 	
 	## AUTHENTICATION
-	#bot.Identify_NickUser('humanbot')
-	#bot.Identify_Password('********')
+	bot.Identify_NickUser('humanbot')
+	bot.Identify_Password('********')
 	#while not bot.hidden:
 		#msg = tools.Get(bot)
 		#if not msg or msg=="": continue
