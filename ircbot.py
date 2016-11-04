@@ -2,7 +2,7 @@
 #-*-coding:utf-8-*-
 #
 # ////////////////// IMPORTS
-import os,re,sys,time,socket,fcntl,logger,irctools as tools
+import os,re,sys,time,socket,fcntl,irctools as tools
 
 # ////////////////// FUNCTIONS
 
