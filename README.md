@@ -11,3 +11,5 @@ No installation :
       $ python -B botmain.py
   - Automated session (it will run in background and will process IRC commands reading the 'input' file)
       $ python -B botmain.py < input &> output &
+
+Enjoy :-)
