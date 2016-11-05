@@ -19,7 +19,7 @@ def main():
 	
 	## AUTHENTICATION
 	bot.Identify_NickUser('humanbot')
-	bot.Identify_Password('********')
+	#bot.Identify_Password('********')
 	#while not bot.hidden:
 		#msg = tools.Get(bot)
 		#if not msg or msg=="": continue
@@ -44,11 +44,13 @@ def main():
 		if date!=date_0:
 			try:
 				reload(tools)
+				print "%s source reloaded"%date
 				date_0 = date
-			except: pass
+			except: print "%s source reloading failed"%date
 			time.sleep(0.5)
+	
 		# CRONJOBS
-		if ircbot.Uptime( bot ) % bot.crontime == 0 and random.random()<bot.cronprob:
+		if ircbot.Uptime( bot ) % bot.crontime <= 6 and random.random()<bot.cronprob:
 			tools.Cronjob( bot )
 		# READ FROM SOCKET
 		msg = tools.Get(bot)

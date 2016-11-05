@@ -17,9 +17,20 @@ def GetCall(line):
 
 def Cronjob(bot):
 	if ircbot.Uptime(bot) < 10: return
-	bot.Send('privmsg #laphysique :cronjob text ^o^')
-	time.sleep(0.050)
+	bot.Send('privmsg #laphysique :cronjob text example ^o^')
+	bot.crontime = 3600
+	bot.cronprob = 1
+	#time.sleep(0.050)
 
+def GetAnswer(line):
+	linein = line.lower()
+	output = None
+	if linein.count('pourquoi'):
+		output = "vaste question..." if random()<0.5 else "beaucoup de tenants et d'aboutissants"
+	elif linein.count('comment'):
+		output = "avec beaucoup d'imagination" if random()<0.5 else "à la main"
+	return output
+	
 # //////////////////////////////////////////////////////////////////////////////////////////////
 # ////////////////// GET METHOD
 
@@ -103,6 +114,8 @@ def Update(bot,msg):
 				elif msg.count(bot.nick):
 					if any([msg.lower().count(x) for x in GREETINGS]):
 						x = choice(GREETINGS)+' %s'%user
+					elif msg.count('?'):
+						x = GetAnswer(msg)
 					bot.Send('privmsg %s :%s'%(chan,x))
 				elif any([msg.lower().count(x) for x in QUOTES_KEYS]):
 					for k,v in QUOTES.iteritems():
@@ -111,6 +124,6 @@ def Update(bot,msg):
 
 # DATA
 GREETINGS = ['yo','salut','bonjour','hello','ola','salam alekoum','buon giorno']
-SCHEDULE  = {"1337":"|\|0w 15 7h3 71m3"}
+SCHEDULE  = {"1100":"schedule job success" , "1337":"|\|0w 15 7h3 71m3"}
 QUOTES    = { "shake":" ♩ ᕕ(ᐛ)ᕗ  ♬ ♩  " }
 QUOTES_KEYS = QUOTES.keys()
