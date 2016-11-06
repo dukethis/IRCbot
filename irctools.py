@@ -2,8 +2,7 @@
 #-*-coding:utf-8-*-
 # //////////////////////////////////////////////////////////////////////////////////////////////
 # ////////////////// IMPORTS
-import os,sys,re,time,socket,ircbot
-from random import random,choice
+import os,sys,re,time,socket,ircbot,random
 from subprocess import check_output
 # //////////////////////////////////////////////////////////////////////////////////////////////
 # ////////////////// FUNCTIONS
@@ -15,12 +14,27 @@ def GetCall(line):
 	else: res = None
 	return res
 
-# CRONJOB
+# CRONJOB (EACH bot.crontime SECONDS)
 def Cronjob(bot):
-	if ircbot.Uptime(bot)%bot.crontime>6 or random()<bot.cronprob: return
-	bot.Send('privmsg #laphysique :cronjob text example ^o^')
+	# YOU MAY NEED TO ADJUST THE SETTING
+	r = ircbot.Uptime( bot ) % bot.crontime
+	t = ircbot.Uptime( bot ) < 10
+	if t or r > 4 or random.random()>bot.cronprob: return
+	bot.Send('privmsg #laphysique :shake test ^^')
 	bot.crontime = 60
 	bot.cronprob = 1
+	time.sleep(4)
+
+# SCHEDULED JOBS {'HHMM':'something to remind or announce'}
+def Scheduledjob(bot):
+	act_time = check_output('date "+%H%M %S"',shell=1).strip()
+	if act_time and SCHEDULE:
+		hm,s = act_time.split() ; s = int(s)
+		# CHECK FOR SCHEDULED JOBS
+		for k,v in SCHEDULE.iteritems():
+			if hm==k and 0<=s<=30:
+				bot.Send('privmsg %s :%s'%(bot.chan[0],v))
+				time.sleep(30-s)
 
 # TRIGGERS { keyword:command }
 def GetTrigger(line):
@@ -40,14 +54,7 @@ def Get(bot,nb=2048,input_delay=0):
 	# CRONJOBS
 	Cronjob(bot)
 	# WE CHECK TIME FOR SCHEDULED JOBS
-	act_time = check_output('date "+%H%M %S"',shell=1).strip()
-	if act_time and SCHEDULE:
-		hm,s = act_time.split() ; s = int(s)
-		# CHECK FOR SCHEDULED JOBS
-		for k,v in SCHEDULE.iteritems():
-			if hm==k and 0<=s<=30:
-				bot.Send('privmsg #laphysique :%s'%v)
-				time.sleep(30-s)
+	Scheduledjob(bot)
 	# TRY TO READ FROM SOCKET
 	try: msg = bot.socket.recv(nb)
 	# EXCEPT FOR TIMEOUT
@@ -88,42 +95,44 @@ def Get(bot,nb=2048,input_delay=0):
 # ////////////////// MAIN UPDATE
 
 def Update(bot,msg):
-	if bot.connected:
-		lines = msg.splitlines()
-		# FOR EACH LINE IN MESSAGE
-		for line in lines:
-			line = line.strip()
-			# WHAT DO WE HAVE
-			CALL = GetCall(line)
-			if not CALL: continue
-			# GET USER/CHAN FROM OUTPUT
-			user = line.split(CALL)[0][1:]
-			user = re.sub('!.*','',user)
-			chan = re.findall('#[^ ]+',line)
-			if len(chan)>0: chan=chan[0]
-			elif not chan and user: chan=user
-			else: chan = ""
-			# FOR A PRIVATE MESSAGE (EXCLUDING 'anotherbot' ;-)
-			if CALL=='PRIVMSG' and user not in ['anotherbot']:
-				msg = line.split(CALL)[1]
-				if chan.count('#'): msg = line.split(chan+' :')[1]
-				else: msg = line.split(bot.nick+' :')[1]
-				# CUT MESSAGES THAT CONTAIN '|' OR '&' (SAFETY FOR EXECUTING SCRIPT)
-				msg = re.sub('[|&].*','',msg)
-				# AUTOMATED MESSAGES
-				x = GetTrigger(msg)
-				if x: bot.Send('privmsg %s :%s'%(chan,x))
-				elif msg.count(' %s'%bot.nick) or msg.count('%s '%bot.nick):
-					x = 'thats me'
-					bot.Send('privmsg %s :%s'%(chan,x))
-				elif msg.count('music'):
-					MUSIC = '♩ ♪ ♫ ♬ ♭'.split()
-					song = ' '.join([choice(MUSIC) for i in range(5)])
-					bot.Send('privmsg %s :%s'%(chan,song))
-				elif any([msg.lower().count(x) for x in QUOTES_KEYS]):
-					for k,v in QUOTES.iteritems():
-						if msg.lower().count(k):
-							bot.Send('privmsg %s :%s'%(chan,v))
+	if not bot.connected: return
+	# PROCESS OUTPUT
+	lines = msg.splitlines()
+	for line in lines:
+		line = line.strip()
+		# WHAT DO WE HAVE (PRIVMSG,JOIN,...)
+		CALL = GetCall(line)
+		if not CALL: continue
+		# GET USER/CHAN FROM OUTPUT
+		user = line.split(CALL)[0][1:]
+		user = re.sub('!.*','',user)
+		chan = re.findall('#[^ ]+',line)
+		if len(chan)>0: chan=chan[0]
+		elif not chan and user: chan=user
+		else: chan = ""
+		# FOR A PRIVATE MESSAGE (EXCLUDING 'anotherbot' ;-)
+		if CALL=='PRIVMSG' and user not in ['anotherbot']:
+			msg = line.split(CALL)[1]
+			# BOT CAN BE USED BOTH IN PUBLIC AND PRIVATE
+			if chan.count('#'): msg = line.split(chan+' :')[1]
+			else: msg = line.split(bot.nick+' :')[1]
+			# CUT MESSAGES THAT CONTAIN '|' OR '&' (SAFETY FOR EXECUTING SCRIPT)
+			msg = re.sub('[|&].*','',msg)
+			# CHECK FOR TRIGGERS FIRST
+			x = GetTrigger(msg)
+			if x: bot.Send('privmsg %s :%s'%(chan,x))
+			# ELSE SOME AUTOMATED MESSAGES
+			elif msg.count(' %s'%bot.nick) or msg.count('%s '%bot.nick):
+				x = 'thats me'
+				bot.Send('privmsg %s :%s'%(chan,x))
+			elif msg.count('music'):
+				MUSIC = '♩ ♪ ♫ ♬ ♭'.split()
+				song = ' '.join([random.choice(MUSIC) for i in range(5)])
+				bot.Send('privmsg %s :%s'%(chan,song))
+			elif any([msg.lower().count(x) for x in QUOTES_KEYS]):
+				for k,v in QUOTES.iteritems():
+					if msg.lower().count(k):
+						bot.Send('privmsg %s :%s'%(chan,v))
 
 # DATA
 TRIGGERS  = {"url":"$BOTSRC/spider -c %s"}

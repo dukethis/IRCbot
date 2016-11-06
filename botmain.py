@@ -48,10 +48,7 @@ def main():
 				date_0 = date
 			except: print "%s source reloading failed"%date
 			time.sleep(0.5)
-	
-		## CRONJOBS
-		#if ircbot.Uptime( bot ) % bot.crontime <= 6 and random.random()<bot.cronprob:
-			#tools.Cronjob( bot )
+		
 		# READ FROM SOCKET
 		msg = tools.Get(bot)
 		if msg==None: sys.exit(0)
