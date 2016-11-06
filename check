@@ -1,2 +1,2 @@
 #!/bin/bash
-[[ $(isit botmain.py | grep -v "grep") ]] || nohup python -B botmain.py < input &> output &
+[[ $(isit botmain.py) ]] || nohup python -B botmain.py < input &> output &

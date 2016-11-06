@@ -48,8 +48,10 @@ class IrcBot:
 		self.hidden = 0
 		self.connected = 0
 		self.verbose = verbose
-
-	def Send(self,line,reason=None):
+		self.crontime = 60
+		self.cronprob = 1
+	
+	def Send(self,line,reason='msg'):
 		line = line.strip()
 		nbs = self.socket.send('%s\r\n'%line)
 		if line and self.verbose and reason!='PONG':

@@ -15,26 +15,30 @@ def GetCall(line):
 	else: res = None
 	return res
 
+# CRONJOB
 def Cronjob(bot):
-	if ircbot.Uptime(bot) < 10: return
+	if ircbot.Uptime(bot)%bot.crontime>6 or random()<bot.cronprob: return
 	bot.Send('privmsg #laphysique :cronjob text example ^o^')
-	bot.crontime = 3600
+	bot.crontime = 60
 	bot.cronprob = 1
-	#time.sleep(0.050)
 
-def GetAnswer(line):
-	linein = line.lower()
-	output = None
-	if linein.count('pourquoi'):
-		output = "vaste question..." if random()<0.5 else "beaucoup de tenants et d'aboutissants"
-	elif linein.count('comment'):
-		output = "avec beaucoup d'imagination" if random()<0.5 else "à la main"
-	return output
-	
+# TRIGGERS { keyword:command }
+def GetTrigger(line):
+	if any([line.lower().startswith(x) for x in TRIGGERS.keys()]):
+		key = re.sub(' .*','',line)
+		arg = line.split(key)[1].strip()
+		cmd = TRIGGERS[key]
+		arg = re.sub('[|&].*$','',arg)
+		try:    out = check_output('%s %s'%(cmd,arg),shell=1).strip()
+		except: out = None
+		return out
+
 # //////////////////////////////////////////////////////////////////////////////////////////////
 # ////////////////// GET METHOD
 
 def Get(bot,nb=2048,input_delay=0):
+	# CRONJOBS
+	Cronjob(bot)
 	# WE CHECK TIME FOR SCHEDULED JOBS
 	act_time = check_output('date "+%H%M %S"',shell=1).strip()
 	if act_time and SCHEDULE:
@@ -107,23 +111,23 @@ def Update(bot,msg):
 				# CUT MESSAGES THAT CONTAIN '|' OR '&' (SAFETY FOR EXECUTING SCRIPT)
 				msg = re.sub('[|&].*','',msg)
 				# AUTOMATED MESSAGES
-				if msg.count('music'):
+				x = GetTrigger(msg)
+				if x: bot.Send('privmsg %s :%s'%(chan,x))
+				elif msg.count(' %s'%bot.nick) or msg.count('%s '%bot.nick):
+					x = 'thats me'
+					bot.Send('privmsg %s :%s'%(chan,x))
+				elif msg.count('music'):
 					MUSIC = '♩ ♪ ♫ ♬ ♭'.split()
 					song = ' '.join([choice(MUSIC) for i in range(5)])
 					bot.Send('privmsg %s :%s'%(chan,song))
-				elif msg.count(bot.nick):
-					if any([msg.lower().count(x) for x in GREETINGS]):
-						x = choice(GREETINGS)+' %s'%user
-					elif msg.count('?'):
-						x = GetAnswer(msg)
-					bot.Send('privmsg %s :%s'%(chan,x))
 				elif any([msg.lower().count(x) for x in QUOTES_KEYS]):
 					for k,v in QUOTES.iteritems():
 						if msg.lower().count(k):
 							bot.Send('privmsg %s :%s'%(chan,v))
 
 # DATA
+TRIGGERS  = {"url":"$BOTSRC/spider -c %s"}
 GREETINGS = ['yo','salut','bonjour','hello','ola','salam alekoum','buon giorno']
 SCHEDULE  = {"1100":"schedule job success" , "1337":"|\|0w 15 7h3 71m3"}
-QUOTES    = { "shake":" ♩ ᕕ(ᐛ)ᕗ  ♬ ♩  " }
+QUOTES    = { "shake":"♩ ᕕ(ᐛ)ᕗ ♩♩" }
 QUOTES_KEYS = QUOTES.keys()
