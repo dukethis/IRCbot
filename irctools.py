@@ -2,7 +2,8 @@
 #-*-coding:utf-8-*-
 # //////////////////////////////////////////////////////////////////////////////////////////////
 # ////////////////// IMPORTS
-import os,sys,re,time,socket,ircbot,random
+import os,sys,re,time,socket,random,ircbot
+from bs4 import BeautifulSoup
 from subprocess import check_output
 # //////////////////////////////////////////////////////////////////////////////////////////////
 # ////////////////// FUNCTIONS
@@ -42,18 +43,32 @@ def GetTrigger(line):
 		key = re.sub(' .*','',line)
 		arg = line.split(key)[1].strip()
 		cmd = TRIGGERS[key]
-		arg = re.sub('[|&].*$','',arg)
+		arg = re.sub('[|&].*$','',arg) # NO PIPES
 		try:    out = check_output('%s %s'%(cmd,arg),shell=1).strip()
 		except: out = None
 		return out
 
-# URL DECODER (USING SPIDER BOT)
-def GetTitle(line):
+# URL DECODER (USING BEAUTIFULSOUP)
+def GetTitle(line,timeout=10,verbose=0):
 	url = re.findall('https?://[^ ]+',line)
 	if url:
-		try:    title = check_output('$BOTSRC/spider -c %s'%url[0],shell=1).strip()
-		except: title = None
-		return title
+		url = url[0]
+		try:    headers = check_output('HEAD "%s"'%url,shell=1).strip()
+		except: headers = None
+		if headers:
+			if verbose: os.system('echo "%s"'%headers)
+			content = re.findall('Content-Type: .*',headers)
+			if content:
+				content = content[0]
+				if not content.count('text'): print content
+				else:
+					try:    rep = check_output('timeout %ds curl "%s" 2> /dev/null'%(timeout,url),shell=1).strip()
+					except: rep = None
+					if rep:
+						html = BeautifulSoup(rep,'html.parser')
+						for t in html.find_all('title'):
+							return t.get_text().strip().encode('utf-8')
+		
 
 # //////////////////////////////////////////////////////////////////////////////////////////////
 # ////////////////// GET METHOD
@@ -151,15 +166,9 @@ GREETINGS = ['yo','salut','bonjour','hello','ola','salam alekoum','buon giorno']
 SCHEDULE  = {"1100":"schedule job success" , "1337":"|\|0w 15 7h3 71m3"}
 QUOTES    = {
 'vulgaire':'Vulgaire ? Oui... Mais pas seulement',
-'suicide collectif':'✔ ☣ suicide collectif activé ☢ ☠',
-'datalove':'datagueule le datalove ♥',
 '< *3':'♥',
 'shake':' ♩ ᕕ(ᐛ)ᕗ  ♬ ♩    ',
 'dtc':'ça chatouille',
-'fucking a':'★★★★★★',
-'yeah':'★★★★★☆',
-'joli':'★★★★☆☆',
-'mouai':'★★☆☆☆☆',
 'haha':'lol'
 }
 QUOTES_KEYS = QUOTES.keys()
