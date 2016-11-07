@@ -20,8 +20,8 @@ def Cronjob(bot):
 	r = ircbot.Uptime( bot ) % bot.crontime
 	t = ircbot.Uptime( bot ) < 10
 	if t or r > 4 or random.random()>bot.cronprob: return
-	bot.Send('privmsg #laphysique :shake test ^^')
-	bot.crontime = 60
+	bot.Send('privmsg #laphysique :shake test ^^','cronjob')
+	bot.crontime = 600
 	bot.cronprob = 1
 	time.sleep(4)
 
@@ -33,7 +33,7 @@ def Scheduledjob(bot):
 		# CHECK FOR SCHEDULED JOBS
 		for k,v in SCHEDULE.iteritems():
 			if hm==k and 0<=s<=30:
-				bot.Send('privmsg %s :%s'%(bot.chan[0],v))
+				bot.Send('privmsg %s :%s'%(bot.chan[0],v),'scheduledjob')
 				time.sleep(30-s)
 
 # TRIGGERS { keyword:command }
@@ -46,6 +46,14 @@ def GetTrigger(line):
 		try:    out = check_output('%s %s'%(cmd,arg),shell=1).strip()
 		except: out = None
 		return out
+
+# URL DECODER (USING SPIDER BOT)
+def GetTitle(line):
+	url = re.findall('https?://[^ ]+',line)
+	if url:
+		try:    title = check_output('$BOTSRC/spider -c %s'%url[0],shell=1).strip()
+		except: title = None
+		return title
 
 # //////////////////////////////////////////////////////////////////////////////////////////////
 # ////////////////// GET METHOD
@@ -118,12 +126,15 @@ def Update(bot,msg):
 			else: msg = line.split(bot.nick+' :')[1]
 			# CUT MESSAGES THAT CONTAIN '|' OR '&' (SAFETY FOR EXECUTING SCRIPT)
 			msg = re.sub('[|&].*','',msg)
+			# NAME URL BY DEFAULT
+			title = GetTitle(msg)
+			if title: bot.Send('privmsg %s :%s'%(chan,title),'title')
 			# CHECK FOR TRIGGERS FIRST
 			x = GetTrigger(msg)
 			if x: bot.Send('privmsg %s :%s'%(chan,x))
 			# ELSE SOME AUTOMATED MESSAGES
 			elif msg.count(' %s'%bot.nick) or msg.count('%s '%bot.nick):
-				x = 'thats me'
+				x = '◯¬(ᐛ)ᕗ ..' if random.random()<0.5 else 'ᕕ(ᐛ)−◯ ..'
 				bot.Send('privmsg %s :%s'%(chan,x))
 			elif msg.count('music'):
 				MUSIC = '♩ ♪ ♫ ♬ ♭'.split()
@@ -135,8 +146,20 @@ def Update(bot,msg):
 						bot.Send('privmsg %s :%s'%(chan,v))
 
 # DATA
-TRIGGERS  = {"url":"$BOTSRC/spider -c %s"}
+TRIGGERS  = {"uptime":"/usr/bin/uptime"}
 GREETINGS = ['yo','salut','bonjour','hello','ola','salam alekoum','buon giorno']
 SCHEDULE  = {"1100":"schedule job success" , "1337":"|\|0w 15 7h3 71m3"}
-QUOTES    = { "shake":"♩ ᕕ(ᐛ)ᕗ ♩♩" }
+QUOTES    = {
+'vulgaire':'Vulgaire ? Oui... Mais pas seulement',
+'suicide collectif':'✔ ☣ suicide collectif activé ☢ ☠',
+'datalove':'datagueule le datalove ♥',
+'< *3':'♥',
+'shake':' ♩ ᕕ(ᐛ)ᕗ  ♬ ♩    ',
+'dtc':'ça chatouille',
+'fucking a':'★★★★★★',
+'yeah':'★★★★★☆',
+'joli':'★★★★☆☆',
+'mouai':'★★☆☆☆☆',
+'haha':'lol'
+}
 QUOTES_KEYS = QUOTES.keys()
