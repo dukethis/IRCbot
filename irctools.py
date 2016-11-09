@@ -43,7 +43,7 @@ def GetTrigger(line):
 		key = re.sub(' .*','',line)
 		arg = line.split(key)[1].strip()
 		cmd = TRIGGERS[key]
-		arg = re.sub('[|&].*$','',arg) # NO PIPES
+		arg = re.sub('[|&].*$','',arg) # NO PIPES SIR
 		try:    out = check_output('%s %s'%(cmd,arg),shell=1).strip()
 		except: out = None
 		return out
@@ -123,6 +123,7 @@ def Update(bot,msg):
 	lines = msg.splitlines()
 	for line in lines:
 		line = line.strip()
+		bot.log('recv [%d bytes] %s'%(len(line),line))
 		# WHAT DO WE HAVE (PRIVMSG,JOIN,...)
 		CALL = GetCall(line)
 		if not CALL: continue
@@ -133,8 +134,8 @@ def Update(bot,msg):
 		if len(chan)>0: chan=chan[0]
 		elif not chan and user: chan=user
 		else: chan = ""
-		# FOR A PRIVATE MESSAGE (EXCLUDING 'anotherbot' ;-)
-		if CALL=='PRIVMSG' and user not in ['anotherbot']:
+		# FOR ANY PRIVATE MESSAGE
+		if CALL=='PRIVMSG' and user not in ['Collabot']:
 			msg = line.split(CALL)[1]
 			# BOT CAN BE USED BOTH IN PUBLIC AND PRIVATE
 			if chan.count('#'): msg = line.split(chan+' :')[1]
@@ -145,11 +146,31 @@ def Update(bot,msg):
 			title = GetTitle(msg)
 			if title: bot.Send('privmsg %s :%s'%(chan,title),'title')
 			# CHECK FOR TRIGGERS FIRST
-			x = GetTrigger(msg)
-			if x: bot.Send('privmsg %s :%s'%(chan,x))
+			output = GetTrigger(msg)
+			if output:
+				lines = output.splitlines()
+				for line in lines: bot.Send('privmsg %s :%s'%(chan,line))
 			# ELSE SOME AUTOMATED MESSAGES
-			elif msg.count(' %s'%bot.nick) or msg.count('%s '%bot.nick):
-				x = '◯¬(ᐛ)ᕗ ..' if random.random()<0.5 else 'ᕕ(ᐛ)−◯ ..'
+			elif msg.count('coin') > 3:
+				x = 'ratatatatatatatat'
+				bot.Send('privmsg %s :%s'%(chan,x))
+			elif msg.startswith('coin'):
+				x = re.sub('coin','pan',msg)
+				x = re.sub('[?]','!',x)
+				bot.Send('privmsg %s :%s'%(chan,x))
+			elif msg.count('?') and msg.count(bot.nick):
+				if msg.count('pourquoi'):
+					x = 'parce que.' if random.random()<0.5 else "ça j'en sais rien"
+				elif msg.count('comment'):
+					x = 'à la main ?' if random.random()<0.5 else 'en priant peut-être'
+				elif msg.count('quand'):
+					x = 'en 1778, un mardi' if random.random()<0.5 else 'demain je crois'
+				elif re.findall(' ou | où ',msg):
+					x = 'au pays des chauve-souris' if random.random()<0.5 else 'au fond à droite'
+				elif msg.count('aime'):
+					x = 'bien sûr !' if user=='dudorino' else 'ouai si tu veux'
+				else:
+					x = 'oui' if random.random()<0.5 else 'non'
 				bot.Send('privmsg %s :%s'%(chan,x))
 			elif msg.count('music'):
 				MUSIC = '♩ ♪ ♫ ♬ ♭'.split()
@@ -159,16 +180,16 @@ def Update(bot,msg):
 				for k,v in QUOTES.iteritems():
 					if msg.lower().count(k):
 						bot.Send('privmsg %s :%s'%(chan,v))
-
+			elif msg.count(' %s'%bot.nick) or msg.count('%s '%bot.nick):
+				x = '◯¬(ᐛ)ᕗ ..' if random.random()<0.5 else 'ᕕ(ᐛ)−◯ ..'
+				bot.Send('privmsg %s :%s'%(chan,x))
+			
 # DATA
-TRIGGERS  = {"uptime":"/usr/bin/uptime"}
+TRIGGERS  = {"uptime":"/usr/bin/uptime" , "rss":"$BOTSRC/rss" , "cnrtl":"$BOTSRC/cnrtl" , "define":"$BOTSRC/cnrtl"}
 GREETINGS = ['yo','salut','bonjour','hello','ola','salam alekoum','buon giorno']
-SCHEDULE  = {"1100":"schedule job success" , "1337":"|\|0w 15 7h3 71m3"}
+SCHEDULE  = {"1337":"m4k3 7h3 1337 gr347 4g41n"}
 QUOTES    = {
 'vulgaire':'Vulgaire ? Oui... Mais pas seulement',
-'< *3':'♥',
-'shake':' ♩ ᕕ(ᐛ)ᕗ  ♬ ♩    ',
-'dtc':'ça chatouille',
-'haha':'lol'
+'< *3':'♥', 'shake':' ♩ ᕕ(ᐛ)ᕗ  ♬ ♩    ', 'dtc':'ça chatouille', 'haha':'lol'
 }
 QUOTES_KEYS = QUOTES.keys()

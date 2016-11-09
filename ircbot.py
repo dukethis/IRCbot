@@ -3,6 +3,7 @@
 #
 # ////////////////// IMPORTS
 import os,re,sys,time,socket,fcntl,irctools as tools
+from subprocess import check_output
 
 # ////////////////// FUNCTIONS
 
@@ -51,46 +52,47 @@ class IrcBot:
 		self.crontime = 60
 		self.cronprob = 1
 	
+	def log(self,line):
+		t = check_output('date "+%H:%M:%S"',shell=1).strip()
+		os.system("echo -e '%s %s' | sed -e 's/ *-e *//g'"%(t,line))
+	
 	def Send(self,line,reason='msg'):
 		line = line.strip()
 		nbs = self.socket.send('%s\r\n'%line)
-		if line and self.verbose and reason!='PONG':
-			print '\rrecv [%d bytes] (%s)'%(len(line),line)
-			print '\rsent [%d bytes] (%s)'%(nbs,reason)
+		if line and reason!='PONG':
+			self.log('sent [%d bytes] (%s)'%(nbs,line))
 		self.last = line
 		return nbs
 
 	def Connect(self,timeout=5):
 		if self.connected: return
-		if self.verbose: print "• connecting..."
+		print "• connecting..."
 		self.socket.connect(self.host)
 		self.socket.settimeout(float(timeout))
 		msg = tools.Get(self)
-		if self.verbose: print msg,
+		print msg,
 		if msg.startswith(':'):
 			host = re.sub(' .*$','',msg)[1:]
 			server = host.strip()
-			if self.verbose: print "• hosted by %s"%server
+			print "• hosted by %s"%server
 			self.host = (server,self.host[1])
+			self.log('Hosted by %s %d'%self.host)
 			self.connected = 1
 	
 	def Identify_NickUser(self,ident):
 		self.ident = ident
-		if self.verbose: print "• identifying as %s (%s)"%(self.nick,self.ident)
+		print "• identifying as %s (%s)"%(self.nick,self.ident)
 		self.Send("nick "+self.nick,reason='nick command')
 		self.Send("user "+self.nick+" "+self.host[0]+" bla "+self.ident,reason='user command')
-		msg = tools.Get(self)
-		if self.verbose: print msg
+		print tools.Get(self)
 	
 	def Identify_Password(self,password):
 		self.Send("privmsg nickserv :identify %s %s"%(self.nick,password),reason='identify command')
-		msg = tools.Get(self)
-		if self.verbose: print msg
+		print tools.Get(self)
 
 	def Join(self,chans):
 		for chan in chans:
-			if self.verbose: print "• joining %s"%chan
+			print "• joining %s"%chan
 			self.Send("join "+chan,reason="join command")
-			msg = tools.Get(self)
-			if self.verbose: print msg
+			print tools.Get(self)
 			if chan not in self.chan: self.chan.append( chan )
