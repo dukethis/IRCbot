@@ -1,98 +1,87 @@
 #!/usr/bin/python
-#-*-coding:utf-8-*-
-#
+# coding: UTF-8
+# //////////////////////////////////////////////////////////////////////////////////////////////
 # ////////////////// IMPORTS
 import os,re,sys,time,socket,fcntl,irctools as tools
-from subprocess import check_output
 
-# ////////////////// FUNCTIONS
+# //////////////////////////////////////////////////////////////////////////////////////////////
+# ////////////////// HOSTS
+"""
+('irc.freenode.org',6667)
+('fdn.geeknode.org',6667)
+('fantasya.europnet.org',6667)
+('roubaix-fr.pirateirc.net',6697)
+('bulbizarre.swordarmor.fr',6697)
+('kaiminus.swordarmor.fr',6697)
+"""
 
-# ///////// NETWORK
-# make a socket ready
-def makeSocket():
-    return socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-
-# make stdin a non-blocking file
-def nonblocking_stdin():
-    fd = sys.stdin.fileno()
-    fl = fcntl.fcntl(fd, fcntl.F_GETFL)
-    fcntl.fcntl(fd, fcntl.F_SETFL, fl | os.O_NONBLOCK)
-
-# make stdin a blocking file
-def blocking_stdin():
-    fd = sys.stdin.fileno()
-    fcntl.fcntl(fd, fcntl.F_SETFL, os.O_RDONLY)
-
-# ///////// BASE/BOT UTILITIES
-
-def splitline(line):
-    rs = line.split()
-    r1 = ' '.join( rs[:len(rs)//2] )
-    r2 = ' '.join( rs[len(rs)//2:] )
-    return [r1,r2]
-
-# uptime from Unit().time
-def Uptime(unit):
-    return int( round(time.mktime(time.localtime())-time.mktime(unit.time),0) )
-
+# //////////////////////////////////////////////////////////////////////////////////////////////
 # ////////////////// OBJECT
+class IRCBOT:
 
-class IrcBot:
-
-	def __init__(self,nick,host=('irc.freenode.org',6667),verbose=1):
+	def __init__(self,nick,host):
 		self.nick = nick
 		self.host = host
 		self.chan = []
 		self.data = ""
 		self.time = time.localtime()
-		self.socket = makeSocket()
+		self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 		self.hidden = 0
 		self.connected = 0
-		self.verbose = verbose
-		self.crontime = 60
-		self.cronprob = 1
+		# USE NON BLOCKING STDIN (GOOD ENOUGH ?)
+		fd = sys.stdin.fileno()
+		fl = fcntl.fcntl(fd, fcntl.F_GETFL)
+		fcntl.fcntl(fd, fcntl.F_SETFL, fl | os.O_NONBLOCK)
 	
-	def log(self,line):
-		t = check_output('date "+%H:%M:%S"',shell=1).strip()
-		os.system("echo -e '%s %s' | sed -e 's/ *-e *//g'"%(t,line))
+	@property
+	def uptime(self): return int( round(time.mktime(time.localtime())-time.mktime(self.time),0) )
 	
-	def Send(self,line,reason='msg'):
+	def send(self,line,reason=None):
 		line = line.strip()
 		nbs = self.socket.send('%s\r\n'%line)
 		if line and reason!='PONG':
-			self.log('sent [%d bytes] (%s)'%(nbs,line))
+			print '\rsent [%d bytes] %s (%s)'%(nbs,line,reason)
 		self.last = line
 		return nbs
 
-	def Connect(self,timeout=5):
+	def connect(self,timeout=5):
 		if self.connected: return
 		print "• connecting..."
 		self.socket.connect(self.host)
 		self.socket.settimeout(float(timeout))
-		msg = tools.Get(self)
-		print msg,
+		msg = tools.recv(self)
 		if msg.startswith(':'):
 			host = re.sub(' .*$','',msg)[1:]
 			server = host.strip()
-			print "• hosted by %s"%server
 			self.host = (server,self.host[1])
-			self.log('Hosted by %s %d'%self.host)
 			self.connected = 1
+			print "• hosted by %s"%server
+		print msg
+		time.sleep(0.25)
 	
-	def Identify_NickUser(self,ident):
+	def id_user(self,ident='botnet'):
 		self.ident = ident
 		print "• identifying as %s (%s)"%(self.nick,self.ident)
-		self.Send("nick "+self.nick,reason='nick command')
-		self.Send("user "+self.nick+" "+self.host[0]+" bla "+self.ident,reason='user command')
-		print tools.Get(self)
+		self.send("nick "+self.nick,reason='nick command')
+		self.send("user "+self.nick+" "+self.host[0]+" bla "+self.ident,reason='user command')
+		msg = tools.recv(self)
+		print msg
+		time.sleep(0.25)
 	
-	def Identify_Password(self,password):
-		self.Send("privmsg nickserv :identify %s %s"%(self.nick,password),reason='identify command')
-		print tools.Get(self)
+	def id_pass(self,password):
+		self.send("privmsg nickserv :identify %s %s"%(self.nick,password),reason='identify command')
+		msg = tools.recv(self)
+		print msg
+		time.sleep(0.25)
 
-	def Join(self,chans):
-		for chan in chans:
-			print "• joining %s"%chan
-			self.Send("join "+chan,reason="join command")
-			print tools.Get(self)
-			if chan not in self.chan: self.chan.append( chan )
+	def join(self,chan):
+		print "• joining %s"%chan
+		self.send("join "+chan,reason="join command")
+		msg = tools.recv(self)
+		if chan not in self.chan: self.chan.append( chan )
+		print msg
+		time.sleep(0.25)
+		
+	def __del__(self):
+		self.socket.send('quit\r\n')
+		self.socket.close()

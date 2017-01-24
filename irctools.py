@@ -1,83 +1,38 @@
 #!/usr/bin/python
-#-*-coding:utf-8-*-
+# coding: UTF-8
 # //////////////////////////////////////////////////////////////////////////////////////////////
 # ////////////////// IMPORTS
-import os,sys,re,time,socket,random,ircbot
-from bs4 import BeautifulSoup
+import os,sys,re,time,socket,ircbot
+from random import random,choice
 from subprocess import check_output
+
+# //////////////////////////////////////////////////////////////////////////////////////////////
+# ////////////////// DATA
+
+GREETINGS = ['yo','salut','bonjour','hello','ola','salam alekoum','buon giorno']
+SCHEDULE  = { "1212":"J'ai faim"}
+QUOTES    = { "shake":" ♩ ᕕ(ᐛ)ᕗ  ♬ ♩ ." , "uptime":"bot.uptime" }
+QUOTES_KEYS = QUOTES.keys()
+
+# SYSTEM COMMAND TRIGGERS
+TRIGGERS = { "define":"/home/duke/bin/define %s" }
+
 # //////////////////////////////////////////////////////////////////////////////////////////////
 # ////////////////// FUNCTIONS
 
-# GET 'CALL' FROM OUTPUT (PRIVMSG,JOIN,...)
-def GetCall(line):
-	res = re.findall(' *[A-Z]{4,8} *',line)
-	if len(res)>0: res = res[0].strip()
-	else: res = None
-	return res
-
-# CRONJOB (EACH bot.crontime SECONDS)
-def Cronjob(bot):
-	# YOU MAY NEED TO ADJUST THE SETTING
-	r = ircbot.Uptime( bot ) % bot.crontime
-	t = ircbot.Uptime( bot ) < 10
-	if t or r > 4 or random.random()>bot.cronprob: return
-	bot.Send('privmsg #laphysique :shake test ^^','cronjob')
-	bot.crontime = 600
+def cronJob(bot):
+	if bot.uptime < 10: return
+	bot.send('privmsg #laphysique :cronjob text example ^o^')
+	bot.crontime = 3600
 	bot.cronprob = 1
-	time.sleep(4)
-
-# SCHEDULED JOBS {'HHMM':'something to remind or announce'}
-def Scheduledjob(bot):
-	act_time = check_output('date "+%H%M %S"',shell=1).strip()
-	if act_time and SCHEDULE:
-		hm,s = act_time.split() ; s = int(s)
-		# CHECK FOR SCHEDULED JOBS
-		for k,v in SCHEDULE.iteritems():
-			if hm==k and 0<=s<=30:
-				bot.Send('privmsg %s :%s'%(bot.chan[0],v),'scheduledjob')
-				time.sleep(30-s)
-
-# TRIGGERS { keyword:command }
-def GetTrigger(line):
-	if any([line.lower().startswith(x) for x in TRIGGERS.keys()]):
-		key = re.sub(' .*','',line)
-		arg = line.split(key)[1].strip()
-		cmd = TRIGGERS[key]
-		arg = re.sub('[|&].*$','',arg) # NO PIPES SIR
-		try:    out = check_output('%s %s'%(cmd,arg),shell=1).strip()
-		except: out = None
-		return out
-
-# URL DECODER (USING BEAUTIFULSOUP)
-def GetTitle(line,timeout=10,verbose=0):
-	url = re.findall('https?://[^ ]+',line)
-	if url:
-		url = url[0]
-		try:    headers = check_output('HEAD "%s"'%url,shell=1).strip()
-		except: headers = None
-		if headers:
-			if verbose: os.system('echo "%s"'%headers)
-			content = re.findall('Content-Type: .*',headers)
-			if content:
-				content = content[0]
-				if not content.count('text'): print content
-				else:
-					try:    rep = check_output('timeout %ds curl "%s" 2> /dev/null'%(timeout,url),shell=1).strip()
-					except: rep = None
-					if rep:
-						html = BeautifulSoup(rep,'html.parser')
-						for t in html.find_all('title'):
-							return t.get_text().strip().encode('utf-8')
-		
-
+	#time.sleep(0.050)
+	
 # //////////////////////////////////////////////////////////////////////////////////////////////
 # ////////////////// GET METHOD
 
-def Get(bot,nb=2048,input_delay=0):
-	# CRONJOBS
-	Cronjob(bot)
+def recv(bot,nb=2048,input_delay=0):
 	# WE CHECK TIME FOR SCHEDULED JOBS
-	Scheduledjob(bot)
+	t = check_output('date "+%H:%M:%S"',shell=1).strip()
 	# TRY TO READ FROM SOCKET
 	try: msg = bot.socket.recv(nb)
 	# EXCEPT FOR TIMEOUT
@@ -88,108 +43,84 @@ def Get(bot,nb=2048,input_delay=0):
 			time.sleep(input_delay)
 			try:    inline = sys.stdin.readline().strip()
 			except: inline = None
-			if inline: bot.Send(inline)
+			if inline: bot.send(inline)
 			return ""
 		# FOR AN ERROR EXCEPT TIMEOUT, WE SHOULD STOP
 		else:
-			if bot.verbose: print "bot stopped:%s"%e
+			print "%s bot stopped: %s"%(t,e)
 			sys.exit(1)
 	# FOR AN ERROR EXCEPT TIMEOUT, WE SHOULD STOP
 	except socket.error, e:
-		if bot.verbose: print "bot stopped:%s"%e
+		print "%s bot stopped: %s"%(t,e)
 		sys.exit(1)
 	else:
 		# BOT SHUTDOWN
 		if len(msg) == 0:
-			if bot.verbose: print '• %s orderly shutdown.\n'%bot.nick
-			bot.connected = 0
-			return
+			if bot.connected:
+				print '%s %s orderly shutdown.'%(t,bot.nick)
+				bot.connected = 0
+			sys.exit(0)
 		else:
 			# AUTO RESPONSE TO ANY PING
 			if msg.startswith('PING '):
 				host = msg.split()[1]
-				bot.Send('PONG %s'%host,reason='PONG')
-			# JUST A CACHE (USELESS AFTER A PROPER START)
-			bot.data += msg
-			if len(bot.data)>1024*10: bot.data = bot.data[-1024*10:]
+				bot.send('PONG %s'%host,reason='PONG')
+			else: print '\rrecv [%d bytes] %s'%(len(msg),re.sub('\n|\r','',msg))
 			return msg
 
 # //////////////////////////////////////////////////////////////////////////////////////////////
 # ////////////////// MAIN UPDATE
 
-def Update(bot,msg):
-	if not bot.connected: return
-	# PROCESS OUTPUT
-	lines = msg.splitlines()
-	for line in lines:
-		line = line.strip()
-		bot.log('recv [%d bytes] %s'%(len(line),line))
-		# WHAT DO WE HAVE (PRIVMSG,JOIN,...)
-		CALL = GetCall(line)
-		if not CALL: continue
-		# GET USER/CHAN FROM OUTPUT
-		user = line.split(CALL)[0][1:]
-		user = re.sub('!.*','',user)
-		chan = re.findall('#[^ ]+',line)
-		if len(chan)>0: chan=chan[0]
-		elif not chan and user: chan=user
-		else: chan = ""
-		# FOR ANY PRIVATE MESSAGE
-		if CALL=='PRIVMSG' and user not in ['Collabot']:
-			msg = line.split(CALL)[1]
-			# BOT CAN BE USED BOTH IN PUBLIC AND PRIVATE
-			if chan.count('#'): msg = line.split(chan+' :')[1]
-			else: msg = line.split(bot.nick+' :')[1]
-			# CUT MESSAGES THAT CONTAIN '|' OR '&' (SAFETY FOR EXECUTING SCRIPT)
-			msg = re.sub('[|&].*','',msg)
-			# NAME URL BY DEFAULT
-			title = GetTitle(msg)
-			if title: bot.Send('privmsg %s :%s'%(chan,title),'title')
-			# CHECK FOR TRIGGERS FIRST
-			output = GetTrigger(msg)
-			if output:
-				lines = output.splitlines()
-				for line in lines: bot.Send('privmsg %s :%s'%(chan,line))
-			# ELSE SOME AUTOMATED MESSAGES
-			elif msg.count('coin') > 3:
-				x = 'ratatatatatatatat'
-				bot.Send('privmsg %s :%s'%(chan,x))
-			elif msg.startswith('coin'):
-				x = re.sub('coin','pan',msg)
-				x = re.sub('[?]','!',x)
-				bot.Send('privmsg %s :%s'%(chan,x))
-			elif msg.count('?') and msg.count(bot.nick):
-				if msg.count('pourquoi'):
-					x = 'parce que.' if random.random()<0.5 else "ça j'en sais rien"
-				elif msg.count('comment'):
-					x = 'à la main ?' if random.random()<0.5 else 'en priant peut-être'
-				elif msg.count('quand'):
-					x = 'en 1778, un mardi' if random.random()<0.5 else 'demain je crois'
-				elif re.findall(' ou | où ',msg):
-					x = 'au pays des chauve-souris' if random.random()<0.5 else 'au fond à droite'
-				elif msg.count('aime'):
-					x = 'bien sûr !' if user=='dudorino' else 'ouai si tu veux'
-				else:
-					x = 'oui' if random.random()<0.5 else 'non'
-				bot.Send('privmsg %s :%s'%(chan,x))
-			elif msg.count('music'):
-				MUSIC = '♩ ♪ ♫ ♬ ♭'.split()
-				song = ' '.join([random.choice(MUSIC) for i in range(5)])
-				bot.Send('privmsg %s :%s'%(chan,song))
-			elif any([msg.lower().count(x) for x in QUOTES_KEYS]):
-				for k,v in QUOTES.iteritems():
-					if msg.lower().count(k):
-						bot.Send('privmsg %s :%s'%(chan,v))
-			elif msg.count(' %s'%bot.nick) or msg.count('%s '%bot.nick):
-				x = '◯¬(ᐛ)ᕗ ..' if random.random()<0.5 else 'ᕕ(ᐛ)−◯ ..'
-				bot.Send('privmsg %s :%s'%(chan,x))
-			
-# DATA
-TRIGGERS  = {"uptime":"/usr/bin/uptime" , "rss":"$BOTSRC/rss" , "cnrtl":"$BOTSRC/cnrtl" , "define":"$BOTSRC/cnrtl"}
-GREETINGS = ['yo','salut','bonjour','hello','ola','salam alekoum','buon giorno']
-SCHEDULE  = {"1337":"m4k3 7h3 1337 gr347 4g41n"}
-QUOTES    = {
-'vulgaire':'Vulgaire ? Oui... Mais pas seulement',
-'< *3':'♥', 'shake':' ♩ ᕕ(ᐛ)ᕗ  ♬ ♩    ', 'dtc':'ça chatouille', 'haha':'lol'
-}
-QUOTES_KEYS = QUOTES.keys()
+def update(bot,msg):
+	if bot.connected:
+		lines = msg.splitlines()
+		# FOR EACH LINE IN MESSAGE
+		for line in lines:
+			line = line.strip()
+			# WHAT DO WE HAVE
+			CALL = re.findall(' *[A-Z]{4,8} *',line)
+			CALL = CALL[0].strip() if CALL else CALL
+			if not CALL: continue
+			# GET USER/CHAN FROM OUTPUT
+			user = line.split(CALL)[0][1:]
+			user = re.sub('!.*','',user)
+			chan = re.findall('#[^ ]+',line)
+			if len(chan)>0: chan=chan[0]
+			elif not chan and user: chan=user
+			else: chan = ""
+			# FOR A PRIVATE MESSAGE (EXCLUDING 'anotherbot')
+			if CALL=='PRIVMSG' and user not in ['anotherbot']:
+				msg = line.split(CALL)[1]
+				if chan.count('#'): msg = line.split(chan+' :')[1]
+				else: msg = line.split(bot.nick+' :')[1]
+				# CUT MESSAGES THAT CONTAIN '|' OR '&' (SAFETY FOR EXECUTING SCRIPT)
+				msg = re.sub('[|&].*','',msg)
+				# AUTOMATED TRIGGERS
+				for k,v in TRIGGERS.iteritems():
+					if msg.startswith(k):
+						arg = re.sub('%s *'%k,'',msg)
+						cmd = TRIGGERS[k]%arg
+						try:    ans=check_output(cmd,shell=1).strip()
+						except: ans=None
+						if ans:
+							lines = ans.splitlines()
+							output = []
+							output = [x for x in lines if x not in output]
+							if k=='define': output = output[:4]
+							for line in output:
+								bot.send('privmsg %s :%s'%(chan,line))
+				# AUTOMATED MESSAGES
+				if msg.count('music'):
+					MUSIC = '♩ ♪ ♫ ♬ ♭'.split()
+					song = ' '.join([choice(MUSIC) for i in range(5)])
+					bot.send('privmsg %s :%s'%(chan,song))
+				elif msg.count(bot.nick):
+					if any([msg.lower().count(x) for x in GREETINGS]):
+						x = choice(GREETINGS)+' %s'%user
+					elif msg.count('?'):
+						x = 'oui' if random()<0.5 else 'non'
+					bot.send('privmsg %s :%s'%(chan,x))
+				elif any([msg.lower().count(x) for x in QUOTES_KEYS]):
+					for k,v in QUOTES.iteritems():
+						if msg.lower().count(k):
+							bot.send('privmsg %s :%s'%(chan,eval(v)))
