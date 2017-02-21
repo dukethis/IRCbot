@@ -1,8 +1,8 @@
-#!/usr/bin/python
+#!/usr/bin/python -B
 # coding: UTF-8
 # //////////////////////////////////////////////////////////////////////////////////////////////
 # ////////////////// IMPORTS
-import os,re,sys,time,socket,fcntl,irctools as tools
+import os,re,sys,time,socket,ssl,fcntl,irctools as tools
 
 # //////////////////////////////////////////////////////////////////////////////////////////////
 # ////////////////// HOSTS
@@ -23,65 +23,52 @@ class IRCBOT:
 		self.nick = nick
 		self.host = host
 		self.chan = []
-		self.data = ""
 		self.time = time.localtime()
-		self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-		self.hidden = 0
-		self.connected = 0
-		# USE NON BLOCKING STDIN (GOOD ENOUGH ?)
-		fd = sys.stdin.fileno()
-		fl = fcntl.fcntl(fd, fcntl.F_GETFL)
-		fcntl.fcntl(fd, fcntl.F_SETFL, fl | os.O_NONBLOCK)
+		self.socket = ssl.wrap_socket( socket.socket(socket.AF_INET,socket.SOCK_STREAM), ssl_version=ssl.PROTOCOL_TLSv1)
 	
 	@property
 	def uptime(self): return int( round(time.mktime(time.localtime())-time.mktime(self.time),0) )
 	
 	def send(self,line,reason=None):
-		line = line.strip()
+		t = tools.now()
 		nbs = self.socket.send('%s\r\n'%line)
 		if line and reason!='PONG':
-			print '\rsent [%d bytes] %s (%s)'%(nbs,line,reason)
+			tools.echo('\r%s sent [%d bytes] %s (%s)'%(t,nbs,line,reason))
 		self.last = line
 		return nbs
 
-	def connect(self,timeout=5):
-		if self.connected: return
-		print "• connecting..."
+	def connect(self,timeout=10):
+		tools.echo("• connecting...")
 		self.socket.connect(self.host)
+		tools.echo("• handshaking...")
+		self.socket.do_handshake()
+		tools.echo("• handshake done.")
 		self.socket.settimeout(float(timeout))
-		msg = tools.recv(self)
-		if msg.startswith(':'):
-			host = re.sub(' .*$','',msg)[1:]
-			server = host.strip()
-			self.host = (server,self.host[1])
-			self.connected = 1
-			print "• hosted by %s"%server
-		print msg
-		time.sleep(0.25)
-	
-	def id_user(self,ident='botnet'):
-		self.ident = ident
-		print "• identifying as %s (%s)"%(self.nick,self.ident)
-		self.send("nick "+self.nick,reason='nick command')
-		self.send("user "+self.nick+" "+self.host[0]+" bla "+self.ident,reason='user command')
-		msg = tools.recv(self)
-		print msg
-		time.sleep(0.25)
-	
-	def id_pass(self,password):
-		self.send("privmsg nickserv :identify %s %s"%(self.nick,password),reason='identify command')
-		msg = tools.recv(self)
-		print msg
-		time.sleep(0.25)
-
-	def join(self,chan):
-		print "• joining %s"%chan
-		self.send("join "+chan,reason="join command")
-		msg = tools.recv(self)
-		if chan not in self.chan: self.chan.append( chan )
-		print msg
-		time.sleep(0.25)
 		
+	def id_user(self):
+		tools.echo("• identifying as %s"%(self.nick))
+		self.send("user %s * * :%s"%(self.nick,self.nick),reason='user command')
+		self.send("nick "+self.nick,reason='nick command')
+		msg = tools.recv(self,1024)
+		tools.echo(msg)
+		time.sleep(0.5)
+	
+	def id_pass(self,password,nb=4096):
+		self.send("privmsg nickserv :identify %s %s"%(self.nick,password),reason='identify command')
+		msg = tools.recv(self,nb)
+		tools.echo(msg)
+		time.sleep(1)
+	
+	def join(self,chan,nb=4096):
+		tools.echo("• joining %s"%chan)
+		self.send("join "+chan,reason="join command")
+		msg = tools.recv(self,nb)
+		if chan not in self.chan: self.chan.append( chan )
+		tools.echo(msg)
+		time.sleep(1)
+	
 	def __del__(self):
-		self.socket.send('quit\r\n')
+		try:    self.socket.send('quit\r\n')
+		except: pass
 		self.socket.close()
+	

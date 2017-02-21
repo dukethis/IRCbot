@@ -1,28 +1,27 @@
 #!/usr/bin/python
 # coding: UTF-8
-# //////////////////////////////////////////////////////////////////////////////////////////////
 # ////////////////// IMPORTS
-import os,sys,re,time,socket,fcntl,ircbot,irctools as tools
-from subprocess import check_output
+import time,ircbot,irctools as tools
 
-bot = ircbot.IRCBOT('bibop',('chat.freenode.org',6667))
+bot = ircbot.IRCBOT('bibop',('chat.freenode.org',6697))
 
 bot.connect()
 bot.id_user()
+
 bot.join('#laphysique')
 
-# CHECK ANY CHANGE IN irctools.py MODULE
-CHECKDATE = "ls -lc irctools.py | sed -e 's/.* [0-9{4,4}] //g'"
-date_0 = check_output(CHECKDATE,shell=1).strip()
+# RELOAD SOURCE MODULE EVERY X SECONDS
+TIME_RELOAD = 60
+TIME_0 = time.time()
 
 while True:
-	# SOURCE CHECKING
-	date = check_output(CHECKDATE,shell=1).strip()
-	if date!=date_0:
+	if time.time()-TIME_0 > TIME_RELOAD:
 		try:
-			reload(tools) ; print "%s source up to date"%date
-			date_0 = date
-		except: print "%s WARNING source update failed"%date
+			reload(tools)
+			print "INFO source up to date"
+			TIME_0 = time.time()
+		except: print "WARNING source update failed"
 	msg = tools.recv(bot)
 	tools.update(bot,msg)
 	time.sleep(0.25)
+
