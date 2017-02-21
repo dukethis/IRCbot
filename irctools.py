@@ -6,9 +6,10 @@ from random import random,choice
 from subprocess import check_output
 
 GREETINGS = ['yo','salut','bonjour','hello','ola','salam alekoum','buon giorno']
-SCHEDULE  = { "1212":"J'ai faim"}
+SCHEDULE  = { "1212":"J'ai faim" , "1750":"scheduled job" }
 QUOTES    = {
 "shake":" ♩ ᕕ(ᐛ)ᕗ  ♬ ♩ .",
+"ping":"pong",
 "vulgaire":"vulgaire ? oui, mais pas seulement..."
 }
 QUOTES_KEYS = QUOTES.keys()
@@ -55,13 +56,11 @@ def GetTrigger(msg,bot,chan,user):
 		ut = "%.3f h"%(ut/3600.) if ut > 1000 else "%d s"%(ut)
 		bot.send('privmsg %s :%s'%(chan,ut))
 	elif msg.count(bot.nick):
-		if re.findall('%s is'%bot.nick,msg):
-			x = "\(^^)/ %s"%(re.sub('%s is '%bot.nick,'',msg))
-		elif re.findall('merci|thank you|thanks|ty',msg):
+		if re.findall('merci|thank you|thanks|ty',msg):
 			x = 'de rien %s'%user
 		elif msg.count('?'):
 			x = 'oui' if random()<0.5 else 'non'
-		else: x = '\(^^)/ what ?'
+		else: x = '%s toi-même'%(re.sub(' ?%s[:]? ?'%bot.nick,'',msg))
 		bot.send('privmsg %s :%s'%(chan,x))
 	elif any([re.findall(x,msg.lower()) for x in QUOTES_KEYS]):
 		for k,v in QUOTES.iteritems():
@@ -73,29 +72,37 @@ def GetTrigger(msg,bot,chan,user):
 def recv(bot,nb=2048):
 	# ACTUAL TIME
 	t = now()
+	# EXEC SCHEDULED JOBS
+	if SCHEDULE:
+		hms = t.split(':')
+		hm = ''.join(hms[:2])
+		if hm in SCHEDULE.keys():
+			bot.send('privmsg %s :%s'%(bot.chan[0],SCHEDULE[hm]),'scheduled job')
+			time.sleep(60-int(hms[2]))
+	m = None
 	# TRY TO READ FROM SOCKET
-	try: msg = str(bot.socket.recv(nb))
-	except socket.error as e:
-		#print(' '.join(e))
-		pass
-	else:
-		# BOT SHUTDOWN
-		if len(msg) == 0:
-			if bot.connected:
-				echo('%s %s orderly shutdown.'%(t,bot.nick))
-				bot.connected = 0
+	try: m = str(bot.socket.recv(nb))
+	except Exception as e:
+		try: INPUT = sys.stdin.readline().strip()
+		except: time.sleep(0.1)
+		if INPUT: bot.send(INPUT,reason="input")
+	# BOT SHUTDOWN
+	if m:
+		if m.count('Closing Link'):
+			echo('%s %s orderly shutdown.'%(t,bot.nick))
 			sys.exit(0)
 		else:
 			# AUTO RESPONSE TO ANY PING
-			if msg.startswith('PING'):
-				host = msg.split()[1]
-				bot.send('PONG %s'%host,reason='PONG %s'%host)
-			else: echo('\r%s recv [%d bytes] %s'%(t,len(msg),re.sub('\n|\r','',msg)))
-			return msg
+			if m.startswith('PING'):
+				host = m.split()[1]
+				bot.send('PONG %s'%host,'PING')
+			else: echo('\r%s recv [%d bytes] %s'%(t,len(m),re.sub('\n|\r','',m)))
+			return m
 
 # ////////////////// MAIN UPDATE
 
 def update(bot,msg):
+	# PARSE RECEIVED MESSAGE
 	if msg:
 		lines = msg.splitlines()
 		# FOR EACH LINE IN MESSAGE
@@ -123,4 +130,4 @@ def update(bot,msg):
 				# AUTOMATED TRIGGERS
 				try:    GetTrigger(msg,bot,chan,user)
 				except: pass
-				
+	

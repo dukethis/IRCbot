@@ -1,21 +1,18 @@
-#!/usr/bin/python -B
+#!/usr/bin/python
 # coding: UTF-8
-# //////////////////////////////////////////////////////////////////////////////////////////////
 # ////////////////// IMPORTS
-import os,re,sys,time,socket,ssl,fcntl,irctools as tools
+import os,re,sys,time,socket,ssl,irctools as tools
 
-# //////////////////////////////////////////////////////////////////////////////////////////////
 # ////////////////// HOSTS
 """
-('irc.freenode.org',6667)
-('fdn.geeknode.org',6667)
-('fantasya.europnet.org',6667)
+('irc.freenode.org',6697)
+('fdn.geeknode.org',6697)
+('fantasya.europnet.org',6697)
 ('roubaix-fr.pirateirc.net',6697)
 ('bulbizarre.swordarmor.fr',6697)
 ('kaiminus.swordarmor.fr',6697)
 """
 
-# //////////////////////////////////////////////////////////////////////////////////////////////
 # ////////////////// OBJECT
 class IRCBOT:
 
