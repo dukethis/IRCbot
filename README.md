@@ -1,8 +1,8 @@
 # bibop_ircbot
 IRC python simple bot 
 
-A small project to command a bot, this version should allow you to modify the source file irctools.py on live.
-This way, you can add new functions and triggers in the file without having to restart (providing a valid code).
+A small project to run a bot on IRC.
+A bot can connect one server and join multiple channels at once.
 
 Requirements : 
 - python
