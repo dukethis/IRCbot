@@ -1,71 +1,89 @@
 #!/usr/bin/python
 # coding: UTF-8
-# ////////////////// IMPORTS
-import os,re,sys,time,socket,ssl,irctools as tools
 
-# ////////////////// HOSTS
-"""
-('irc.freenode.org',6697)
-('fdn.geeknode.org',6697)
-('fantasya.europnet.org',6697)
-('roubaix-fr.pirateirc.net',6697)
-('bulbizarre.swordarmor.fr',6697)
-('kaiminus.swordarmor.fr',6697)
-"""
+import os,sys,re,time,socket,ssl
+from random import random,choice
+from subprocess import check_output
 
-# ////////////////// OBJECT
 class IRCBOT:
+	def __init__(self,HOST,PORT,NICK='bibop'):
+		self.nick = NICK
+		self.host = HOST
+		self.port = PORT
+		self.output = None
+		self.input  = None
 
-	def __init__(self,nick,host):
-		self.nick = nick
-		self.host = host
-		self.chan = []
-		self.time = time.localtime()
-		self.socket = ssl.wrap_socket( socket.socket(socket.AF_INET,socket.SOCK_STREAM), ssl_version=ssl.PROTOCOL_TLSv1)
-	
-	@property
-	def uptime(self): return int( round(time.mktime(time.localtime())-time.mktime(self.time),0) )
-	
-	def send(self,line,reason=None):
-		t = tools.now()
-		nbs = self.socket.send('%s\r\n'%line)
-		if line and reason!='PONG':
-			tools.echo('\r%s sent [%d bytes] %s (%s)'%(t,nbs,line,reason))
-		self.last = line
-		return nbs
+		# CLEAR VIEW SOCKET
+		socket_0 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+		# TLSv1 WRAPPED SOCKET
+		self.socket = ssl.wrap_socket(socket_0, ssl_version=ssl.PROTOCOL_TLSv1)
 
-	def connect(self,timeout=10):
-		tools.echo("• connecting...")
-		self.socket.connect(self.host)
-		tools.echo("• handshaking...")
+	def send(self,msg):
+		self.socket.send("%s\r\n"%msg)
+
+	def read(self,bytes=1024):
+		try: msg = self.socket.recv(bytes).strip()
+		except Exception as this:
+			err = this.args[0]
+			if err == 'The read operation timed out': return
+			# FOR AN ERROR EXCEPT TIMEOUT, WE SHOULD STOP
+			else:
+				print >> self.output, "Stopped: %s"%(err)
+				sys.exit(1)
+		else:
+			# BOT SHUTDOWN
+			if len(msg) == 0:
+				print >> self.output, '%s %s orderly shutdown.'%(self.nick)
+				sys.exit(0)
+			else:
+				# AUTO RESPONSE TO ANY PING
+				if msg.startswith('PING '):
+					host = msg.split()[1]
+					self.send('PONG %s'%host)
+		return msg
+
+	def connect(self,d=1):
+		# CONNECT AND DO HANDSHAKE (CF TLS)
+		print >> self.output, "connecting..."
+		self.socket.connect((self.host,self.port))
+		print >> self.output, "handshaking..."
 		self.socket.do_handshake()
-		tools.echo("• handshake done.")
-		self.socket.settimeout(float(timeout))
-		
-	def id_user(self):
-		tools.echo("• identifying as %s"%(self.nick))
-		self.send("user %s * * :%s"%(self.nick,self.nick),reason='user command')
-		self.send("nick "+self.nick,reason='nick command')
-		msg = tools.recv(self,1024)
-		tools.echo(msg)
-		time.sleep(0.5)
-	
-	def id_pass(self,password,nb=4096):
-		self.send("privmsg nickserv :identify %s %s"%(self.nick,password),reason='identify command')
-		msg = tools.recv(self,nb)
-		tools.echo(msg)
-		time.sleep(1)
-	
-	def join(self,chan,nb=4096):
-		tools.echo("• joining %s"%chan)
-		self.send("join "+chan,reason="join command")
-		msg = tools.recv(self,nb)
-		if chan not in self.chan: self.chan.append( chan )
-		tools.echo(msg)
-		time.sleep(1)
-	
+		self.socket.settimeout(10)
+		if d: time.sleep(d)
+
+	def identify(self,d=1):
+		# IDENTIFYING AS USUAL
+		self.send("USER %s * * :%s"%(self.nick,self.nick))
+		self.send("NICK %s"%self.nick)
+		if d: time.sleep(d)		
+		print >> self.output, self.read(1024)		
+
 	def __del__(self):
-		try:    self.socket.send('quit\r\n')
-		except: pass
+		# QUIT HOST CONNEXION
+		self.socket.send("QUIT\r\n")
+		# CLOSE SOCKET CONNEXION
 		self.socket.close()
-	
+
+def update(bot):
+	data = bot.read()
+	if not data: return
+	MSGS = re.findall('^.*PRIVMSG.*$',data)
+	for msg in MSGS:
+		USER = re.sub('^:','', re.sub('!.*','',msg) )
+		MESG = re.sub('.*PRIVMSG','',msg)
+		DEST = MESG.split(':')[0]
+		MESG = ":".join(MESG.split(':')[1:])
+		if re.findall(bot.nick,MESG):
+			if re.findall('\?',MESG):
+				p = choice([0,1])
+				ans = 'oui peut-être' * p + (1-p) * 'non je crois pas'
+				bot.send("PRIVMSG %s :%s"%(DEST,ans))
+			else: bot.send("PRIVMSG %s :C'est moi"%DEST)
+		URL = re.findall('(?i)https?:\/\/[^ ]*',MESG)
+		if URL:
+			URL = URL[0]		
+			try:    title = check_output('spyder %s'%URL,shell=1).strip()
+			except: title = None
+			if title: bot.send("PRIVMSG %s :%s"%(DEST,title))
+	print >> bot.output,data
+
