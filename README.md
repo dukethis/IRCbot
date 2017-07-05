@@ -1,14 +1,19 @@
 # bibop_ircbot
 <h3>IRC python simple bot</h3>
 
-A small project to run a robot on IRC as an automated session.
+A small script to run a IRC robot as an automated session.
 Each instance can connect to one server and join multiple channels at once.
 
-Requirements:
-- python
+<h3>Requirements:</h3>
 
-No installation: 
-- With all files in the same directory, change parameters (Server to connect to, Nickname, Channels) in the bibop_run.py file, and run it:
-      - $ python bibop_run.py &> output &
++ python
+
+<h3>Install:</h3> 
+
++ Copy bibop.py and ircbot.py into one of the PATH component
++ change parameters (Server to connect to, Nickname, Channels) in the bibop.py file, and run it:
+      <pre>
+      $ python bibop.py &
+      </pre>
 
 Enjoy :-)
