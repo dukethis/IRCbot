@@ -4,13 +4,13 @@
 """
 import os,sys,re,time,datetime,socket,ssl,urllib3
 from urllib.request import Request,urlopen
-from bs4 import BeautifulSoup
+
 
 #//////////////////////////////////////////////////////////////////////////////////////////////////
 #//////////////////////////////////////////////////////////////////////////////////////////////////
 #///////////////// Internet Relay Chat RobOT
 
-class Ircbot:
+class IRCbot:
     def __init__(self,HOST,PORT,NICK,PATH="."):
         self.nick = NICK
         self.host = HOST
@@ -23,7 +23,7 @@ class Ircbot:
         socket_0 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         # TLSv1_2 WRAPPED SOCKET
         self.socket = ssl.wrap_socket(socket_0, ssl_version=ssl.PROTOCOL_TLSv1_2)
-        
+
     def send(self,msg):
         msg = re.sub("'","",msg)
         print("Send: %s"%msg,flush=1)
@@ -90,7 +90,7 @@ class Ircbot:
 
     def datetime(self, t ):
         return datetime.datetime.fromtimestamp( t ).strftime( "%Y-%m-%d %H:%M" )
-        
+
     def __del__(self):
         # QUIT HOST CONNEXION
         try:    self.socket.send("QUIT \\[o.o]\r\n")
@@ -104,6 +104,19 @@ class Ircbot:
 
 USERS  = {}
 QUOTES = { "test":"test ok" }
+URLS   = {}
+
+def open_url( url ):
+  URL = urllib3.util.parse_url( url )
+  req = Request( url, headers={"User-Agent":"WebCake/url-title"} )
+  req = urlopen( req, timeout=5 )
+  return req
+
+def get_title( req ):
+  html  = req.read().decode('utf-8')
+  title = re.findall("<title>[^<]*",html,re.I|re.M)
+  title = title[0].replace("<title>","") if len(title)>0 else None
+  return title
 
 def chatbot(bot,user,msg,dest):
     n = USERS[user][1] if user in USERS.keys() else 1
@@ -122,34 +135,29 @@ def chatbot(bot,user,msg,dest):
             return
     else:
         url = re.findall("https?:\/\/[^ ,;]*",msg)
-        if url:
-            url = url[0]
-            print(url)
-            try:
-                url    = urllib3.util.parse_url( url )
-                host   = '://'.join([url.scheme,url.host])
-                req    = Request( url, headers={"User-Agent":"WebCake/url-title"} )
-                req    = urlopen( req, timeout=5 )
+        if url: url = url[0]
+        else: return
+        if url in URLS.keys():
+          bot.send("PRIVMSG %s :%s"%(dest,URLS[url]))
+        else:
+          try:
+              req = open_url( url )
+              if req:
+                title = get_title(req)
+                URLS[url] = title
+                bot.send("PRIVMSG %s :%s"%(dest,title))
+              req.close()
+          except Exception as e:
+              try:
+                url = url.replace("https","http")
+                req = open_url( url )
                 if req:
-                  html = BeautifulSoup( req.read().decode('utf-8'), 'lxml' )
-                  data = [ u.get_text() for u in html.find_all("title") ]
-                  data = data[0] if len(data)>0 else None
-                  bot.send( f"PRIVMSG {dest} :{data}" )
+                  title = get_title(req)
+                  URLS[url] = title
+                  bot.send("PRIVMSG %s :%s"%(dest,title))
                 req.close()
-            except Exception as e:
-                if str(e).count("CERTIFICATE_VERIFY_FAILED"):
-                  try:
-                    req    = Request( url.replace("https","http"), headers={"User-Agent":"WebCake/url-title"} )
-                    req    = urlopen( req, timeout=5 )
-                    if req:
-                      html = BeautifulSoup( req.read().decode('utf-8'), 'lxml' )
-                      data = [ u.get_text() for u in html.find_all("title") ]
-                      data = data[0] if len(data)>0 else None
-                      bot.send( f"PRIVMSG {dest} :{data}" )
-                    req.close()
-                  except: print(e)
-                print(e)
-    
+              except: print(e)
+
 def update(bot):
     data = bot.read()
     if not data: return
@@ -165,4 +173,3 @@ def update(bot):
         MESG = re.sub("\'$",'',MESG)
         if DEST in bot.chan or DEST==USER:
             chatbot(bot,USER,MESG,DEST)
-    
